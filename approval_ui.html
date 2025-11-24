@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Approval Dashboard - Riverline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .control-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 15px;
+            align-items: end;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input, select {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card h3 {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .email-list {
+            display: grid;
+            gap: 20px;
+        }
+
+        .email-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #667eea;
+        }
+
+        .email-card.pending {
+            border-left-color: #ffc107;
+        }
+
+        .email-card.approved {
+            border-left-color: #28a745;
+        }
+
+        .email-card.rejected {
+            border-left-color: #dc3545;
+        }
+
+        .email-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .email-info h3 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .email-meta {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .email-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .email-content {
+            margin-bottom: 20px;
+        }
+
+        .email-section {
+            margin-bottom: 20px;
+        }
+
+        .email-section h4 {
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .email-body {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            color: #333;
+            border: 1px solid #e0e0e0;
+        }
+
+        .reply-preview {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            line-height: 1.6;
+            color: #333;
+            border: 1px solid #c8e6c9;
+        }
+
+        .intent-badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .actions .btn {
+            flex: 1;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c33;
+            margin-bottom: 20px;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3c3;
+            margin-bottom: 20px;
+        }
+
+        .edit-reply {
+            width: 100%;
+            min-height: 150px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .edit-reply:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .bulk-actions {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .bulk-actions.hidden {
+            display: none;
+        }
+
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📧 Email Approval Dashboard</h1>
+            <p>Review and approve AI-generated replies before sending</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <div class="form-group">
+                    <label for="campaign-name">Campaign Name:</label>
+                    <input type="text" id="campaign-name" value="New AI automation testing campaign" placeholder="Enter campaign name">
+                </div>
+                <div class="form-group">
+                    <label for="api-url">API Base URL:</label>
+                    <input type="text" id="api-url" value="http://localhost:8000" placeholder="http://localhost:8000">
+                </div>
+                <button class="btn" id="load-btn" onclick="loadEmails()">Load Emails</button>
+            </div>
+        </div>
+
+        <div id="message-container"></div>
+
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <h3>Total Emails</h3>
+                <div class="value" id="stat-total">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Pending Approval</h3>
+                <div class="value" id="stat-pending">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Approved</h3>
+                <div class="value" id="stat-approved">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Rejected</h3>
+                <div class="value" id="stat-rejected">0</div>
+            </div>
+        </div>
+
+        <div class="bulk-actions hidden" id="bulk-actions">
+            <input type="checkbox" id="select-all" class="checkbox" onchange="toggleSelectAll()">
+            <span>Select All</span>
+            <button class="btn btn-success" onclick="approveSelected()">Approve Selected</button>
+            <button class="btn btn-danger" onclick="rejectSelected()">Reject Selected</button>
+            <span id="selected-count">0 selected</span>
+        </div>
+
+        <div id="email-list" class="email-list"></div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading emails and generating replies...</p>
+        </div>
+    </div>
+
+    <script>
+        let emails = [];
+        let selectedEmails = new Set();
+
+        async function loadEmails() {
+            const campaignName = document.getElementById('campaign-name').value.trim();
+            const apiUrl = document.getElementById('api-url').value.trim() || 'http://localhost:8000';
+            
+            if (!campaignName) {
+                showMessage('Please enter a campaign name', 'error');
+                return;
+            }
+
+            const loading = document.getElementById('loading');
+            const emailList = document.getElementById('email-list');
+            const stats = document.getElementById('stats');
+            
+            loading.style.display = 'block';
+            emailList.innerHTML = '';
+            stats.style.display = 'none';
+            hideMessage();
+
+            try {
+                const response = await fetch(`${apiUrl}/campaign/process`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        campaign_name: campaignName,
+                        auto_reply: false,
+                        borrower_name: null,
+                        context: {}
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    let errorMsg = error.detail || 'Failed to load emails';
+                    
+                    // Handle rate limit errors specifically
+                    if (errorMsg.includes('Rate limit') || errorMsg.includes('429')) {
+                        errorMsg = 'Rate limit exceeded. Please wait a minute and try again. The system will automatically retry with delays.';
+                    }
+                    
+                    throw new Error(errorMsg);
+                }
+
+                const data = await response.json();
+                emails = data.results || [];
+                
+                if (emails.length === 0) {
+                    emailList.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No unread emails found</h3>
+                            <p>There are no unread emails in this campaign to process.</p>
+                        </div>
+                    `;
+                } else {
+                    renderEmails();
+                    updateStats();
+                }
+
+                showMessage(`Loaded ${emails.length} email(s)`, 'success');
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        function renderEmails() {
+            const emailList = document.getElementById('email-list');
+            emailList.innerHTML = '';
+
+            emails.forEach((email, index) => {
+                const card = document.createElement('div');
+                card.className = `email-card ${email.status || 'pending'}`;
+                card.id = `email-${index}`;
+                
+                const statusClass = email.status === 'approved' ? 'status-approved' : 
+                                   email.status === 'rejected' ? 'status-rejected' : 'status-pending';
+                const statusText = email.status === 'approved' ? 'Approved' : 
+                                 email.status === 'rejected' ? 'Rejected' : 'Pending';
+
+                card.innerHTML = `
+                    <div class="email-header">
+                        <div class="email-info">
+                            <h3>${email.lead || 'Unknown Borrower'}</h3>
+                            <div class="email-meta">
+                                Email ID: ${email.email_id?.substring(0, 8)}...
+                            </div>
+                            <span class="email-status ${statusClass}">${statusText}</span>
+                        </div>
+                        <input type="checkbox" class="checkbox" onchange="toggleEmail(${index})" ${email.status === 'approved' ? 'checked' : ''}>
+                    </div>
+                    
+                    <div class="email-content">
+                        <div class="email-section">
+                            <h4>Original Email</h4>
+                            <div class="email-body">${escapeHtml(email.original_body || 'No content available')}</div>
+                        </div>
+                        
+                        <div class="email-section">
+                            <h4>AI-Generated Reply</h4>
+                            <div class="reply-preview">${escapeHtml(email.reply || 'Generating...')}</div>
+                            ${email.intent ? `<span class="intent-badge">Intent: ${email.intent}</span>` : ''}
+                        </div>
+                        
+                        <div class="email-section" style="display: ${email.editing ? 'block' : 'none'};" id="edit-section-${index}">
+                            <h4>Edit Reply (Optional)</h4>
+                            <textarea class="edit-reply" id="edit-reply-${index}">${escapeHtml(email.reply || '')}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="actions">
+                        <button class="btn btn-success" onclick="approveEmail(${index})" ${email.status === 'approved' ? 'disabled' : ''}>
+                            ✓ Approve & Send
+                        </button>
+                        <button class="btn btn-secondary" onclick="toggleEdit(${index})">
+                            ✏️ Edit
+                        </button>
+                        <button class="btn btn-danger" onclick="rejectEmail(${index})" ${email.status === 'rejected' ? 'disabled' : ''}>
+                            ✗ Reject
+                        </button>
+                    </div>
+                `;
+                
+                emailList.appendChild(card);
+            });
+
+            updateBulkActions();
+        }
+
+        function toggleEdit(index) {
+            const email = emails[index];
+            email.editing = !email.editing;
+            const editSection = document.getElementById(`edit-section-${index}`);
+            if (editSection) {
+                editSection.style.display = email.editing ? 'block' : 'none';
+            }
+        }
+
+        async function approveEmail(index) {
+            const email = emails[index];
+            const editTextarea = document.getElementById(`edit-reply-${index}`);
+            const replyText = editTextarea ? editTextarea.value : email.reply;
+
+            if (!replyText) {
+                showMessage('No reply text available', 'error');
+                return;
+            }
+
+            const apiUrl = document.getElementById('api-url').value.trim() || 'http://localhost:8000';
+
+            try {
+                const response = await fetch(`${apiUrl}/reply-email`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email_id: email.email_id,
+                        body: replyText,
+                        html_body: `<p>${replyText.replace(/\n/g, '<br>')}</p>`,
+                        eaccount: email.eaccount,
+                        subject: email.original_subject || email.subject,
+                        reply_to_uuid: email.reply_to_uuid || email.email_id
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    let errorMsg = error.detail || 'Failed to send reply';
+                    
+                    // Handle rate limit errors specifically
+                    if (errorMsg.includes('Rate limit') || errorMsg.includes('429')) {
+                        errorMsg = 'Rate limit exceeded. Please wait a minute before sending more replies.';
+                    }
+                    
+                    throw new Error(errorMsg);
+                }
+
+                email.status = 'approved';
+                email.sent_reply = replyText;
+                renderEmails();
+                updateStats();
+                showMessage(`Reply sent successfully to ${email.lead}`, 'success');
+            } catch (error) {
+                showMessage(`Error sending reply: ${error.message}`, 'error');
+            }
+        }
+
+        async function rejectEmail(index) {
+            emails[index].status = 'rejected';
+            renderEmails();
+            updateStats();
+            showMessage('Email marked as rejected', 'success');
+        }
+
+        function toggleEmail(index) {
+            if (selectedEmails.has(index)) {
+                selectedEmails.delete(index);
+            } else {
+                selectedEmails.add(index);
+            }
+            updateBulkActions();
+        }
+
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('select-all').checked;
+            selectedEmails.clear();
+            
+            if (selectAll) {
+                emails.forEach((email, index) => {
+                    if (email.status !== 'approved') {
+                        selectedEmails.add(index);
+                    }
+                });
+            }
+            
+            renderEmails();
+            updateBulkActions();
+        }
+
+        async function approveSelected() {
+            for (const index of selectedEmails) {
+                if (emails[index].status !== 'approved') {
+                    await approveEmail(index);
+                }
+            }
+            selectedEmails.clear();
+            updateBulkActions();
+        }
+
+        function rejectSelected() {
+            selectedEmails.forEach(index => {
+                emails[index].status = 'rejected';
+            });
+            selectedEmails.clear();
+            renderEmails();
+            updateStats();
+            updateBulkActions();
+            showMessage(`${selectedEmails.size} email(s) rejected`, 'success');
+        }
+
+        function updateStats() {
+            const total = emails.length;
+            const pending = emails.filter(e => !e.status || e.status === 'pending').length;
+            const approved = emails.filter(e => e.status === 'approved').length;
+            const rejected = emails.filter(e => e.status === 'rejected').length;
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-pending').textContent = pending;
+            document.getElementById('stat-approved').textContent = approved;
+            document.getElementById('stat-rejected').textContent = rejected;
+
+            document.getElementById('stats').style.display = 'grid';
+        }
+
+        function updateBulkActions() {
+            const bulkActions = document.getElementById('bulk-actions');
+            const selectedCount = document.getElementById('selected-count');
+            
+            selectedCount.textContent = `${selectedEmails.size} selected`;
+            
+            if (emails.length > 0) {
+                bulkActions.classList.remove('hidden');
+            } else {
+                bulkActions.classList.add('hidden');
+            }
+        }
+
+        function showMessage(message, type) {
+            const container = document.getElementById('message-container');
+            container.innerHTML = `<div class="${type}">${escapeHtml(message)}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        function hideMessage() {
+            document.getElementById('message-container').innerHTML = '';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load emails on page load if campaign name is set
+        window.addEventListener('load', () => {
+            const campaignName = document.getElementById('campaign-name').value;
+            if (campaignName) {
+                // Auto-load is disabled - user must click button
+            }
+        });
+    </script>
+</body>
+</html>
+
