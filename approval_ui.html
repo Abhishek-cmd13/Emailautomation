@@ -542,7 +542,7 @@
             </div>
             <div class="form-group">
                 <label for="api-url">API URL</label>
-                <input type="text" id="api-url" value="http://localhost:8000" placeholder="http://localhost:8000">
+                <input type="text" id="api-url" value="https://emailautomation-7djs.onrender.com" placeholder="https://emailautomation-7djs.onrender.com">
             </div>
             <button class="btn" id="load-btn" onclick="loadEmails()">Load Emails</button>
         </div>
@@ -602,7 +602,7 @@
 
         async function loadEmails() {
             const campaignName = document.getElementById('campaign-name').value.trim();
-            const apiUrl = document.getElementById('api-url').value.trim() || 'http://localhost:8000';
+            const apiUrl = document.getElementById('api-url').value.trim() || 'https://emailautomation-7djs.onrender.com';
 
             const loading = document.getElementById('loading');
             const emailList = document.getElementById('email-list');
@@ -903,7 +903,7 @@
                 return;
             }
 
-            const apiUrl = document.getElementById('api-url').value.trim() || 'http://localhost:8000';
+            const apiUrl = document.getElementById('api-url').value.trim() || 'https://emailautomation-7djs.onrender.com';
 
             try {
                 const response = await fetch(`${apiUrl}/reply-email`, {
