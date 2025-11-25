@@ -506,6 +506,161 @@
             cursor: pointer;
             text-decoration: underline;
         }
+        .todo-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .todo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .todo-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px;
+            background: #fafafa;
+        }
+
+        .todo-card h4 {
+            margin-bottom: 8px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #555;
+        }
+
+        .todo-item {
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .todo-item strong {
+            display: block;
+            font-size: 13px;
+            color: #333;
+        }
+
+        .todo-actions-row {
+            margin-top: 8px;
+            display: flex;
+            gap: 6px;
+        }
+
+        .todo-actions-row button {
+            border: none;
+            background: #28a745;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        .todo-actions-row button.secondary {
+            background: #dc3545;
+        }
+
+        .todo-empty {
+            font-size: 12px;
+            color: #888;
+            font-style: italic;
+        }
+
+        .love-message {
+            display: none;
+            background: linear-gradient(120deg, #ff9a9e, #fad0c4);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 15px;
+            color: #5a2a2a;
+            font-weight: 600;
+            box-shadow: 0 8px 20px rgba(255, 154, 158, 0.35);
+            text-align: center;
+            font-size: 16px;
+        }
+
+        .love-message.show {
+            display: block;
+            animation: fadeIn 0.4s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .heart-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .heart-overlay.show {
+            display: flex;
+            animation: overlayFade 1.5s ease forwards;
+        }
+
+        .heart-shape {
+            width: 160px;
+            height: 160px;
+            position: relative;
+            transform: rotate(-45deg) scale(0.6);
+            animation: heartBeat 1.5s ease forwards;
+        }
+
+        .heart-shape::before,
+        .heart-shape::after {
+            content: "";
+            position: absolute;
+            width: 100px;
+            height: 160px;
+            background: rgba(255, 105, 135, 0.85);
+            border-radius: 100px 100px 0 0;
+            top: 0;
+        }
+
+        .heart-shape::before {
+            left: 60px;
+        }
+
+        .heart-shape::after {
+            left: 0;
+            transform: rotate(90deg);
+            transform-origin: top left;
+        }
+
+        @keyframes heartBeat {
+            0% { transform: rotate(-45deg) scale(0.6); opacity: 0; }
+            30% { transform: rotate(-45deg) scale(1); opacity: 1; }
+            60% { transform: rotate(-45deg) scale(0.9); }
+            80% { transform: rotate(-45deg) scale(1.1); }
+            100% { transform: rotate(-45deg) scale(0.8); opacity: 0; }
+        }
+
+        @keyframes overlayFade {
+            0% { opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { opacity: 0; }
+        }
 
         .edit-textarea:focus {
             outline: none;
@@ -548,6 +703,23 @@
         </div>
 
         <div id="message-container"></div>
+        <div id="love-message" class="love-message">
+            We love you Gajendra<br>
+            <small>— Team Riverline</small>
+        </div>
+        <div id="heart-overlay" class="heart-overlay">
+            <div class="heart-shape"></div>
+        </div>
+
+        <div class="todo-panel">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h3>Follow-up Tasks</h3>
+                <small style="color:#666;">Keep promises organized</small>
+            </div>
+            <div class="todo-grid" id="todo-grid">
+                <!-- Filled by JS -->
+            </div>
+        </div>
 
         <div class="progress-container hidden" id="progress-container">
             <div class="progress-header">
@@ -599,6 +771,38 @@
         let emails = [];
         let progressInterval = null;
         let currentProgressId = null;
+        const todoStore = {
+            payment: [],
+            negotiation: [],
+            callback: []
+        };
+        const PROMISE_KEYWORDS = {
+            payment: [
+                /payment\s+link/i,
+                /send(ing)?\s+(you\s+)?the\s+link/i,
+                /pay(?:ment)?\s+via/i,
+                /upi|gpay|razorpay|paytm|link to pay/i
+            ],
+            negotiation: [
+                /negotia/i,
+                /discount/i,
+                /settlement/i,
+                /restructure/i,
+                /waive|waiver/i,
+                /offer/i
+            ],
+            callback: [
+                /call/i,
+                /phone/i,
+                /ring/i,
+                /talk/i,
+                /speak/i,
+                /connect/i,
+                /text/i,
+                /whatsapp/i,
+                /message/i
+            ]
+        };
 
         async function loadEmails() {
             const campaignName = document.getElementById('campaign-name').value.trim();
@@ -678,6 +882,7 @@
                     } else {
                         renderEmails();
                         updateStats();
+                        autoPopulateTodosFromEmails();
                     }
 
                     const source = campaignName ? `campaign '${campaignName}'` : 'all campaigns';
@@ -797,6 +1002,8 @@
                             }
                         }
                         
+                        autoPopulateTodosFromEmails();
+                        
                         showMessage(`✓ Processed ${emails.length} email(s) - Ready for approval`, 'success');
                     } else if (progress.status === 'error') {
                         clearInterval(progressInterval);
@@ -871,10 +1078,20 @@
                             ✗ Reject
                         </button>
                     </div>
+                    <div class="todo-actions-row">
+                        <select id="todo-select-${index}" class="todo-select">
+                            <option value="">Add follow-up…</option>
+                            <option value="payment">Send payment link</option>
+                            <option value="negotiation">Negotiate terms</option>
+                            <option value="callback">Call/Text follow-up</option>
+                        </select>
+                        <button onclick="addTodo(${index})">Add</button>
+                    </div>
                 `;
                 
                 emailList.appendChild(card);
             });
+            renderTodos();
         }
 
         function toggleEdit(index) {
@@ -938,6 +1155,7 @@
                 renderEmails();
                 updateStats();
                 showMessage(`✓ Reply sent to ${email.lead}`, 'success');
+                showLoveMessage();
             } catch (error) {
                 showMessage(`Error: ${error.message}`, 'error');
             } finally {
@@ -952,6 +1170,114 @@
             renderEmails();
             updateStats();
             showMessage('Email marked as rejected', 'success');
+        }
+
+        function addTodo(index) {
+            const select = document.getElementById(`todo-select-${index}`);
+            if (!select) return;
+            const category = select.value;
+            if (!category) {
+                showMessage('Please pick a follow-up type to add', 'error');
+                return;
+            }
+            const email = emails[index];
+            const todo = buildTodoEntry(category, email, `Manual promise for ${category}`);
+            if (!todo) return;
+            if (!todoStore[category].some(item => item.email === todo.email)) {
+                todoStore[category].push(todo);
+            }
+            select.value = '';
+            renderTodos();
+            showMessage(`Added follow-up for ${todo.lead}`, 'success');
+        }
+
+        function completeTodo(category, id) {
+            todoStore[category] = todoStore[category].filter(item => item.id !== id);
+            renderTodos();
+        }
+
+        function buildTodoEntry(category, email, reason) {
+            if (!email) return null;
+            return {
+                id: `${category}-${email.email_id}`,
+                lead: email.lead || email.from_address || 'Unknown',
+                email: email.email_id,
+                subject: email.original_subject || email.subject || '',
+                reason,
+                timestamp: new Date().toLocaleString()
+            };
+        }
+
+        function renderTodos() {
+            const grid = document.getElementById('todo-grid');
+            if (!grid) return;
+            const categories = [
+                { key: 'payment', label: 'Payment Links' },
+                { key: 'negotiation', label: 'Negotiation Promises' },
+                { key: 'callback', label: 'Call / Text Follow-ups' }
+            ];
+            grid.innerHTML = categories.map(cat => {
+                const items = todoStore[cat.key];
+                const content = items.length === 0
+                    ? `<div class="todo-empty">Nothing pending</div>`
+                    : items.map(item => `
+                        <div class="todo-item">
+                            <strong>${escapeHtml(item.lead)}</strong>
+                            <div>${escapeHtml(item.subject || '')}</div>
+                            ${item.reason ? `<small>${escapeHtml(item.reason)}</small>` : ''}
+                            <small>${escapeHtml(item.timestamp)}</small>
+                            <div class="todo-actions-row">
+                                <button onclick="completeTodo('${cat.key}','${item.id}')">Done</button>
+                            </div>
+                        </div>
+                    `).join('');
+                return `
+                    <div class="todo-card">
+                        <h4>${cat.label}</h4>
+                        ${content}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function autoPopulateTodosFromEmails() {
+            if (!emails || emails.length === 0) {
+                renderTodos();
+                return;
+            }
+            // Remove todos for emails no longer present
+            const emailIds = new Set(emails.map(e => e.email_id));
+            Object.keys(todoStore).forEach(cat => {
+                todoStore[cat] = todoStore[cat].filter(item => emailIds.has(item.email));
+            });
+            // Detect promises in replies
+            emails.forEach(email => {
+                const reply = (email.reply || '').toLowerCase();
+                const categories = detectPromiseCategories(reply);
+                categories.forEach(category => {
+                    const reason = category === 'payment'
+                        ? 'Promised payment link'
+                        : category === 'negotiation'
+                            ? 'Promised negotiation / settlement'
+                            : 'Promised call or text follow-up';
+                    const todo = buildTodoEntry(category, email, reason);
+                    if (todo && !todoStore[category].some(item => item.email === todo.email)) {
+                        todoStore[category].push(todo);
+                    }
+                });
+            });
+            renderTodos();
+        }
+
+        function detectPromiseCategories(replyText) {
+            const matches = [];
+            if (!replyText) return matches;
+            Object.entries(PROMISE_KEYWORDS).forEach(([category, patterns]) => {
+                if (patterns.some(pattern => pattern.test(replyText))) {
+                    matches.push(category);
+                }
+            });
+            return matches;
         }
 
         function updateStats() {
@@ -989,6 +1315,29 @@
 
         function clearLogs() {
             document.getElementById('log-content').innerHTML = '';
+        }
+
+        function showLoveMessage() {
+            const loveMessage = document.getElementById('love-message');
+            const heartOverlay = presentHeartOverlay();
+            if (!loveMessage) return;
+            loveMessage.classList.add('show');
+            clearTimeout(showLoveMessage.timeoutId);
+            showLoveMessage.timeoutId = setTimeout(() => {
+                loveMessage.classList.remove('show');
+            }, 5000);
+
+            if (heartOverlay) {
+                heartOverlay.classList.add('show');
+                clearTimeout(showLoveMessage.heartTimeoutId);
+                showLoveMessage.heartTimeoutId = setTimeout(() => {
+                    heartOverlay.classList.remove('show');
+                }, 1500);
+            }
+        }
+
+        function presentHeartOverlay() {
+            return document.getElementById('heart-overlay');
         }
     </script>
 </body>

@@ -287,23 +287,67 @@ class EmailAgent:
         except Exception as e:
             raise Exception(f"Failed to find campaign: {str(e)}")
     
-    async def get_all_unread_emails(self, limit: int = 100, offset: int = 0) -> dict:
-        """Get all unread emails directly - fastest method (only 1 API call)"""
-        params = {
-            "limit": limit,
-            "offset": offset,
-            "is_unread": True  # Get only unread emails
+    async def get_all_unread_emails(self, limit: int = 100, offset: int = 0, include_sent: bool = True) -> dict:
+        """Get unread emails plus (optionally) the most recent sent emails in one request.
+        Relies on Instantly API returning mixed types in a single call."""
+        base_params = {
+            "limit": limit if not include_sent else min(limit * 2, 200),
+            "offset": offset
         }
+        if not include_sent:
+            base_params["is_unread"] = True
         
         try:
             result = await self._make_request(
                 "GET",
                 "/api/v2/emails",
-                params=params
+                params=base_params
             )
+            items = result.get("items", [])
+            if not include_sent:
+                items = [item for item in items if item.get("is_unread")]
+            else:
+                # Separate into unread and sent for callers
+                unread_items = [item for item in items if item.get("is_unread")]
+                sent_items = [item for item in items if item.get("ue_type") == 1]
+                items = unread_items
+                result["sent_items"] = sent_items
+            result["items"] = items
             return result
         except Exception as e:
             raise Exception(f"Failed to get unread emails: {str(e)}")
+    
+    async def check_if_email_has_reply(self, email_id: str, thread_id: Optional[str] = None) -> bool:
+        """Check if an email has already been replied to by checking the thread"""
+        try:
+            # Get all emails in the thread to check if there's a reply
+            params = {"limit": 50}
+            if thread_id:
+                # If we have thread_id, we could filter by it, but API might not support it
+                # So we'll get recent emails and check thread_id
+                pass
+            
+            result = await self._make_request(
+                "GET",
+                "/api/v2/emails",
+                params=params
+            )
+            
+            items = result.get("items", [])
+            
+            # Check if there's a sent email (ue_type == 1) in the same thread that's a reply
+            for email in items:
+                if email.get("thread_id") == thread_id and email.get("ue_type") == 1:
+                    # This is a sent email in the same thread - likely a reply
+                    # Check if it's a reply by looking at subject (contains "Re:") or other indicators
+                    subject = email.get("subject", "")
+                    if "Re:" in subject or email.get("is_auto_reply"):
+                        return True
+            
+            return False
+        except Exception as e:
+            print(f"Error checking if email has reply: {e}")
+            return False  # If we can't check, assume it hasn't been replied to
     
     async def get_emails_by_campaign(self, campaign_id: str, limit: int = 50, offset: int = 0, is_unread: Optional[bool] = None) -> dict:
         """Get emails from a specific campaign"""
