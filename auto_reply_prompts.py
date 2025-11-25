@@ -396,7 +396,8 @@ Output ONLY the email body. No labels, no JSON, no explanations. Just the warm, 
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.7,
-                max_tokens=500
+                max_tokens=300,  # Reduced for faster responses (3-5 lines only)
+                timeout=10.0  # 10 second timeout for faster failure handling
             )
             
             ai_reply = response.choices[0].message.content.strip()

@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: email-automation-agent
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: INSTANTLY_API_KEY
+        sync: false
+      - key: INSTANTLY_API_URL
+        value: https://api.instantly.ai
+      - key: OPENAI_API_KEY
+        sync: false
+

@@ -287,6 +287,24 @@ class EmailAgent:
         except Exception as e:
             raise Exception(f"Failed to find campaign: {str(e)}")
     
+    async def get_all_unread_emails(self, limit: int = 100, offset: int = 0) -> dict:
+        """Get all unread emails directly - fastest method (only 1 API call)"""
+        params = {
+            "limit": limit,
+            "offset": offset,
+            "is_unread": True  # Get only unread emails
+        }
+        
+        try:
+            result = await self._make_request(
+                "GET",
+                "/api/v2/emails",
+                params=params
+            )
+            return result
+        except Exception as e:
+            raise Exception(f"Failed to get unread emails: {str(e)}")
+    
     async def get_emails_by_campaign(self, campaign_id: str, limit: int = 50, offset: int = 0, is_unread: Optional[bool] = None) -> dict:
         """Get emails from a specific campaign"""
         params = {
