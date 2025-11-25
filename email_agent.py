@@ -290,8 +290,9 @@ class EmailAgent:
     async def get_all_unread_emails(self, limit: int = 100, offset: int = 0, include_sent: bool = True) -> dict:
         """Get unread emails plus (optionally) the most recent sent emails in one request.
         Relies on Instantly API returning mixed types in a single call."""
+        max_limit = min(limit * (2 if include_sent else 1), 100)
         base_params = {
-            "limit": limit if not include_sent else min(limit * 2, 200),
+            "limit": max_limit,
             "offset": offset
         }
         if not include_sent:
