@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from datetime import datetime
 import uvicorn
 import os
@@ -73,12 +73,28 @@ def mark_email_processed(email_id: Optional[str]):
 
 def is_email_processed(email_id: Optional[str]) -> bool:
     """Check if an email has already been processed recently"""
+    return get_processed_timestamp(email_id) is not None
+
+def get_processed_timestamp(email_id: Optional[str]) -> Optional[float]:
+    """Return the timestamp when the email was processed, if any"""
     if not email_id:
-        return False
+        return None
     cleanup_processed_cache()
-    if email_id in processed_email_cache:
-        return True
-    return False
+    return processed_email_cache.get(email_id)
+
+def build_skipped_entry(email: dict, reason: str, processed_ts: Optional[float] = None) -> Dict[str, Optional[str]]:
+    """Create a summary for an email that was skipped from processing"""
+    entry = {
+        "email_id": email.get("id"),
+        "lead": email.get("lead"),
+        "subject": email.get("subject"),
+        "campaign_name": email.get("campaign_name") or email.get("campaign_id"),
+        "thread_id": email.get("thread_id"),
+        "reason": reason,
+        "processed_at": datetime.fromtimestamp(processed_ts).isoformat() if processed_ts else None,
+        "received_at": email.get("timestamp_email"),
+    }
+    return entry
 
 async def fetch_with_rate_limit_retry(fetch_fn, progress_id: Optional[str], context: str) -> dict:
     """Call fetch_fn with exponential backoff on rate limit errors"""
@@ -482,6 +498,7 @@ async def process_emails_background(request: ProcessCampaignRequest, progress_id
             "current": 0,
             "current_email": "",
             "results": [],
+            "skipped_emails": [],
             "error": None
         }
         
@@ -530,25 +547,7 @@ async def process_single_campaign_background(request: ProcessCampaignRequest, pr
         )
         
         emails = emails_data.get("items", [])
-        received_emails = [e for e in emails if e.get("ue_type") != 1]
-        sent_emails = [e for e in emails if e.get("ue_type") == 1]
-        
-        # Filter out emails that have already been replied to
-        # Create a set of thread_ids that have replies
-        replied_thread_ids = set()
-        for sent_email in sent_emails:
-            thread_id = sent_email.get("thread_id")
-            if thread_id:
-                subject = sent_email.get("subject", "")
-                if "Re:" in subject or sent_email.get("is_auto_reply"):
-                    replied_thread_ids.add(thread_id)
-        
-        # Filter out emails in threads that already have replies
-        valid_emails = []
-        for email in received_emails:
-            thread_id = email.get("thread_id")
-            if not thread_id or thread_id not in replied_thread_ids:
-                valid_emails.append(email)
+        valid_emails = [e for e in emails if e.get("ue_type") != 1]
         
         log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Found {len(valid_emails)} unread email(s) to process"
         progress_store[progress_id]["logs"].append(log_entry)
@@ -560,10 +559,20 @@ async def process_single_campaign_background(request: ProcessCampaignRequest, pr
         
         # Filter out emails already processed recently
         initial_count = len(valid_emails)
-        valid_emails = [e for e in valid_emails if not is_email_processed(e.get("id"))]
-        skipped_processed = initial_count - len(valid_emails)
-        if skipped_processed > 0:
-            log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ⏭ Skipped {skipped_processed} email(s) already approved earlier"
+        skipped_entries: List[Dict[str, Optional[str]]] = []
+        filtered_emails: List[dict] = []
+        for email in valid_emails:
+            email_id = email.get("id")
+            processed_ts = get_processed_timestamp(email_id)
+            if processed_ts:
+                skipped_entries.append(build_skipped_entry(email, "already_processed", processed_ts))
+            else:
+                filtered_emails.append(email)
+        valid_emails = filtered_emails
+        if skipped_entries:
+            progress_store[progress_id].setdefault("skipped_emails", []).extend(skipped_entries)
+            log_entry = (f"[{datetime.now().strftime('%H:%M:%S')}] ⏭ Skipped {len(skipped_entries)} email(s) "
+                         "already approved earlier")
             progress_store[progress_id]["logs"].append(log_entry)
         
         progress_store[progress_id]["total"] = len(valid_emails)
@@ -636,10 +645,20 @@ async def process_all_unread_emails_background(request: ProcessCampaignRequest, 
         
         # Filter out emails already processed recently
         initial_count = len(valid_emails)
-        valid_emails = [e for e in valid_emails if not is_email_processed(e.get("id"))]
-        skipped_processed = initial_count - len(valid_emails)
-        if skipped_processed > 0:
-            log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ⏭ Skipped {skipped_processed} email(s) already approved earlier"
+        skipped_entries: List[Dict[str, Optional[str]]] = []
+        filtered_emails: List[dict] = []
+        for email in valid_emails:
+            email_id = email.get("id")
+            processed_ts = get_processed_timestamp(email_id)
+            if processed_ts:
+                skipped_entries.append(build_skipped_entry(email, "already_processed", processed_ts))
+            else:
+                filtered_emails.append(email)
+        valid_emails = filtered_emails
+        if skipped_entries:
+            progress_store[progress_id].setdefault("skipped_emails", []).extend(skipped_entries)
+            log_entry = (f"[{datetime.now().strftime('%H:%M:%S')}] ⏭ Skipped {len(skipped_entries)} email(s) "
+                         "already approved earlier")
             progress_store[progress_id]["logs"].append(log_entry)
         
         progress_store[progress_id]["total"] = len(valid_emails)
