@@ -18,6 +18,10 @@ from auto_reply_prompts import BorrowerAutoReplyGenerator
 progress_store: Dict[str, Dict] = {}
 processed_email_cache: Dict[str, float] = {}
 PROCESSED_EMAIL_TTL_SECONDS = 60 * 60 * 24 * 7  # 7 days
+RATE_LIMIT_MAX_ATTEMPTS = 5
+RATE_LIMIT_INITIAL_DELAY = 20  # seconds
+RATE_LIMIT_BACKOFF = 2
+RATE_LIMIT_KEYWORDS = ("rate limit", "too many requests", "429")
 
 # Rate limiter: 100 requests per 10 seconds = 10 requests per second max
 class RateLimiter:
@@ -75,6 +79,28 @@ def is_email_processed(email_id: Optional[str]) -> bool:
     if email_id in processed_email_cache:
         return True
     return False
+
+async def fetch_with_rate_limit_retry(fetch_fn, progress_id: Optional[str], context: str) -> dict:
+    """Call fetch_fn with exponential backoff on rate limit errors"""
+    delay = RATE_LIMIT_INITIAL_DELAY
+    for attempt in range(1, RATE_LIMIT_MAX_ATTEMPTS + 1):
+        try:
+            return await fetch_fn()
+        except Exception as e:
+            error_text = str(e)
+            lower_error = error_text.lower()
+            is_rate_limit = any(keyword in lower_error for keyword in RATE_LIMIT_KEYWORDS)
+            if not is_rate_limit or attempt == RATE_LIMIT_MAX_ATTEMPTS:
+                raise
+            log_entry = (f"[{datetime.now().strftime('%H:%M:%S')}] Rate limit hit while {context}. "
+                         f"Retrying in {delay} seconds (attempt {attempt}/{RATE_LIMIT_MAX_ATTEMPTS})...")
+            if progress_id and progress_id in progress_store:
+                if "logs" not in progress_store[progress_id]:
+                    progress_store[progress_id]["logs"] = []
+                progress_store[progress_id]["logs"].append(log_entry)
+            await asyncio.sleep(delay)
+            delay *= RATE_LIMIT_BACKOFF
+    raise Exception("Rate limit retry exhausted")
 
 app = FastAPI(
     title="Instantly.ai Email Automation Agent",
@@ -493,10 +519,14 @@ async def process_single_campaign_background(request: ProcessCampaignRequest, pr
         progress_store[progress_id]["logs"].append(log_entry)
         
         await instantly_rate_limiter.acquire()
-        emails_data = await email_agent.get_emails_by_campaign(
-            campaign_id=campaign_id,
-            limit=50,
-            is_unread=True
+        emails_data = await fetch_with_rate_limit_retry(
+            lambda: email_agent.get_emails_by_campaign(
+                campaign_id=campaign_id,
+                limit=50,
+                is_unread=True
+            ),
+            progress_id,
+            f"fetching unread emails for campaign '{request.campaign_name}'"
         )
         
         emails = emails_data.get("items", [])
@@ -584,52 +614,17 @@ async def process_all_unread_emails_background(request: ProcessCampaignRequest, 
         
         await instantly_rate_limiter.acquire()
         # Get unread emails and also include sent emails to check for replies
-        emails_data = await email_agent.get_all_unread_emails(limit=100, include_sent=True)
+        emails_data = await fetch_with_rate_limit_retry(
+            lambda: email_agent.get_all_unread_emails(limit=100, include_sent=True),
+            progress_id,
+            "fetching unread emails"
+        )
         all_emails = emails_data.get("items", [])
         
-        # Filter out sent emails (ue_type == 1 means sent, not received)
-        received_emails = [e for e in all_emails if e.get("ue_type") != 1]
-        sent_emails = [e for e in all_emails if e.get("ue_type") == 1]
-        
-        # Filter out emails that have already been replied to
-        # Check each email's thread to see if there's already a reply in the sent emails
-        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] Checking for already-replied emails..."
-        progress_store[progress_id]["logs"].append(log_entry)
-        
-        # Create a set of thread_ids that have replies (sent emails with "Re:" in subject or is_auto_reply)
-        replied_thread_ids = set()
-        for sent_email in sent_emails:
-            thread_id = sent_email.get("thread_id")
-            if thread_id:
-                subject = sent_email.get("subject", "")
-                # Check if it's a reply (subject contains "Re:" or is_auto_reply is true)
-                if "Re:" in subject or sent_email.get("is_auto_reply"):
-                    replied_thread_ids.add(thread_id)
-        
-        # Filter out emails that are in threads that already have replies
-        emails_to_process = []
-        skipped_count = 0
-        
-        for email in received_emails:
-            thread_id = email.get("thread_id")
-            email_id = email.get("id")
-            
-            # Check if this thread already has a reply
-            if thread_id and thread_id in replied_thread_ids:
-                skipped_count += 1
-                lead_email = email.get("lead", email_id[:8])
-                log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ⏭ Skipping {lead_email} (thread {thread_id[:12]}...) - already replied"
-                progress_store[progress_id]["logs"].append(log_entry)
-            else:
-                emails_to_process.append(email)
-        
-        valid_emails = emails_to_process
-        
-        if skipped_count > 0:
-            log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ⏭ Skipped {skipped_count} email(s) that were already replied to"
-            progress_store[progress_id]["logs"].append(log_entry)
-        
-        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Found {len(valid_emails)} unread email(s) across all campaigns"
+        # Keep only received (unreplied) emails; rely on processed cache to avoid duplicates
+        valid_emails = [e for e in all_emails if e.get("ue_type") != 1]
+        log_entry = (f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Retrieved {len(valid_emails)} unread email(s) "
+                     "before duplicate filtering")
         progress_store[progress_id]["logs"].append(log_entry)
         
         if not valid_emails:
