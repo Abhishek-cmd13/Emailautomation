@@ -226,8 +226,19 @@ async def process_single_email(
     try:
         email_id = email.get("id")
         # Prefer text over HTML, and strip HTML tags if we have to use HTML
-        email_body_text = email.get("body", {}).get("text", "")
-        email_body_html = email.get("body", {}).get("html", "")
+        # Handle body as object with text/html properties (Instantly.ai format)
+        body_obj = email.get("body")
+        if isinstance(body_obj, dict):
+            email_body_text = body_obj.get("text", "")
+            email_body_html = body_obj.get("html", "")
+        elif isinstance(body_obj, str):
+            # Fallback: if body is a string, use it directly
+            email_body_text = body_obj
+            email_body_html = ""
+        else:
+            email_body_text = ""
+            email_body_html = ""
+        
         if email_body_text:
             email_body = email_body_text
         elif email_body_html:
