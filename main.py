@@ -10,6 +10,7 @@ import os
 import asyncio
 import uuid
 import time
+import re
 
 from email_agent import EmailAgent
 from auto_reply_prompts import BorrowerAutoReplyGenerator
@@ -81,6 +82,27 @@ def get_processed_timestamp(email_id: Optional[str]) -> Optional[float]:
         return None
     cleanup_processed_cache()
     return processed_email_cache.get(email_id)
+
+def strip_html_tags(html_text: str) -> str:
+    """Strip HTML tags from text, preserving line breaks"""
+    if not html_text:
+        return ""
+    # Replace <br>, <br/>, <p>, </p> with newlines
+    text = re.sub(r'<br\s*/?>', '\n', html_text, flags=re.IGNORECASE)
+    text = re.sub(r'</?p[^>]*>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</?div[^>]*>', '\n', text, flags=re.IGNORECASE)
+    # Remove all remaining HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Decode HTML entities
+    text = text.replace('&nbsp;', ' ')
+    text = text.replace('&amp;', '&')
+    text = text.replace('&lt;', '<')
+    text = text.replace('&gt;', '>')
+    text = text.replace('&quot;', '"')
+    text = text.replace('&#39;', "'")
+    # Clean up multiple newlines
+    text = re.sub(r'\n\s*\n+', '\n\n', text)
+    return text.strip()
 
 def build_skipped_entry(email: dict, reason: str, processed_ts: Optional[float] = None) -> Dict[str, Optional[str]]:
     """Create a summary for an email that was skipped from processing"""
@@ -203,7 +225,16 @@ async def process_single_email(
     """Process a single email and generate reply"""
     try:
         email_id = email.get("id")
-        email_body = email.get("body", {}).get("text", "") or email.get("body", {}).get("html", "")
+        # Prefer text over HTML, and strip HTML tags if we have to use HTML
+        email_body_text = email.get("body", {}).get("text", "")
+        email_body_html = email.get("body", {}).get("html", "")
+        if email_body_text:
+            email_body = email_body_text
+        elif email_body_html:
+            # Strip HTML tags from HTML body
+            email_body = strip_html_tags(email_body_html)
+        else:
+            email_body = ""
         subject = email.get("subject", "")
         lead_email = email.get("lead")
         
