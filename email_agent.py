@@ -287,8 +287,58 @@ class EmailAgent:
         except Exception as e:
             raise Exception(f"Failed to find campaign: {str(e)}")
     
+    async def get_all_unreplied_emails(self, limit: int = 100, offset: int = 0) -> dict:
+        """Get unreplied emails by fetching received emails and checking if they have replies in their threads.
+        An email is considered 'unreplied' if:
+        1. It's a received email (ue_type != 1)
+        2. There's no sent email (ue_type == 1) in the same thread"""
+        # Fetch a larger batch to get both received and sent emails for thread checking
+        # We need sent emails to check if a thread has been replied to
+        max_limit = min(limit * 2, 100)  # Get more to have sent emails for checking
+        base_params = {
+            "limit": max_limit,
+            "offset": offset
+        }
+        
+        try:
+            result = await self._make_request(
+                "GET",
+                "/api/v2/emails",
+                params=base_params
+            )
+            all_items = result.get("items", [])
+            
+            # Separate received and sent emails
+            received_emails = [item for item in all_items if item.get("ue_type") != 1]
+            sent_emails = [item for item in all_items if item.get("ue_type") == 1]
+            
+            # Build a set of thread_ids that have replies (sent emails)
+            replied_thread_ids = set()
+            for sent_email in sent_emails:
+                thread_id = sent_email.get("thread_id")
+                if thread_id:
+                    replied_thread_ids.add(thread_id)
+            
+            # Filter received emails to only include those without replies
+            unreplied_emails = []
+            for email in received_emails:
+                thread_id = email.get("thread_id")
+                # If no thread_id, consider it unreplied (new thread)
+                if not thread_id or thread_id not in replied_thread_ids:
+                    unreplied_emails.append(email)
+            
+            # Limit to requested amount
+            unreplied_emails = unreplied_emails[:limit]
+            
+            result["items"] = unreplied_emails
+            result["total"] = len(unreplied_emails)
+            return result
+        except Exception as e:
+            raise Exception(f"Failed to get unreplied emails: {str(e)}")
+    
     async def get_all_unread_emails(self, limit: int = 100, offset: int = 0, include_sent: bool = True) -> dict:
-        """Get unread emails plus (optionally) the most recent sent emails in one request.
+        """DEPRECATED: Use get_all_unreplied_emails instead.
+        Get unread emails plus (optionally) the most recent sent emails in one request.
         Relies on Instantly API returning mixed types in a single call."""
         max_limit = min(limit * (2 if include_sent else 1), 100)
         base_params = {
@@ -350,8 +400,62 @@ class EmailAgent:
             print(f"Error checking if email has reply: {e}")
             return False  # If we can't check, assume it hasn't been replied to
     
+    async def get_unreplied_emails_by_campaign(self, campaign_id: str, limit: int = 50, offset: int = 0) -> dict:
+        """Get unreplied emails from a specific campaign.
+        An email is considered 'unreplied' if:
+        1. It's a received email (ue_type != 1)
+        2. It belongs to the specified campaign
+        3. There's no sent email (ue_type == 1) in the same thread"""
+        # Fetch a larger batch to get both received and sent emails for thread checking
+        max_limit = min(limit * 2, 100)
+        params = {
+            "limit": max_limit,
+            "offset": offset
+        }
+        
+        try:
+            result = await self._make_request(
+                "GET",
+                "/api/v2/emails",
+                params=params
+            )
+            all_items = result.get("items", [])
+            
+            # Filter emails by campaign_id
+            campaign_emails = [email for email in all_items if email.get("campaign_id") == campaign_id]
+            
+            # Separate received and sent emails for this campaign
+            received_emails = [item for item in campaign_emails if item.get("ue_type") != 1]
+            sent_emails = [item for item in campaign_emails if item.get("ue_type") == 1]
+            
+            # Build a set of thread_ids that have replies (sent emails)
+            replied_thread_ids = set()
+            for sent_email in sent_emails:
+                thread_id = sent_email.get("thread_id")
+                if thread_id:
+                    replied_thread_ids.add(thread_id)
+            
+            # Filter received emails to only include those without replies
+            unreplied_emails = []
+            for email in received_emails:
+                thread_id = email.get("thread_id")
+                # If no thread_id, consider it unreplied (new thread)
+                if not thread_id or thread_id not in replied_thread_ids:
+                    unreplied_emails.append(email)
+            
+            # Limit to requested amount
+            unreplied_emails = unreplied_emails[:limit]
+            
+            return {
+                "items": unreplied_emails,
+                "total": len(unreplied_emails)
+            }
+        except Exception as e:
+            raise Exception(f"Failed to get unreplied emails by campaign: {str(e)}")
+    
     async def get_emails_by_campaign(self, campaign_id: str, limit: int = 50, offset: int = 0, is_unread: Optional[bool] = None) -> dict:
-        """Get emails from a specific campaign"""
+        """DEPRECATED: Use get_unreplied_emails_by_campaign instead.
+        Get emails from a specific campaign"""
         params = {
             "limit": limit,
             "offset": offset
