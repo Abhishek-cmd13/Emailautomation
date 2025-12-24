@@ -512,10 +512,10 @@ async def get_progress(progress_id: str):
 
 @app.post("/campaign/process")
 async def process_campaign_emails(request: ProcessCampaignRequest):
-    """Process and auto-reply to unreplied emails from a specific campaign or all campaigns.
+    """Process and auto-reply to unread emails from a specific campaign or all campaigns.
     If campaign_name is not provided, processes all campaigns.
     Note: auto_reply defaults to False - set to True to actually send replies.
-    An email is considered 'unreplied' if there's no sent email in the same thread."""
+    Processes emails that are marked as unread in Instantly.ai."""
     if not auto_reply_generator:
         raise HTTPException(status_code=500, detail="OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.")
     
@@ -545,7 +545,7 @@ async def process_emails_background(request: ProcessCampaignRequest, progress_id
             "error": None
         }
         
-        # If no campaign_name provided, fetch all unreplied emails directly (fastest - only 1 API call)
+        # If no campaign_name provided, fetch all unread emails directly (fastest - only 1 API call)
         if not request.campaign_name:
             await process_all_unread_emails_background(request, progress_id)
         else:
@@ -574,23 +574,24 @@ async def process_single_campaign_background(request: ProcessCampaignRequest, pr
         
         campaign_id = campaign.get("id")
         
-        # Rate limit: Get unreplied emails from this campaign (1 Instantly.ai API call)
-        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Campaign found. Fetching unreplied emails..."
+        # Rate limit: Get unread emails from this campaign (1 Instantly.ai API call)
+        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Campaign found. Fetching unread emails..."
         progress_store[progress_id]["logs"].append(log_entry)
         
         await instantly_rate_limiter.acquire()
         emails_data = await fetch_with_rate_limit_retry(
-            lambda: email_agent.get_unreplied_emails_by_campaign(
+            lambda: email_agent.get_emails_by_campaign(
                 campaign_id=campaign_id,
-                limit=50
+                limit=50,
+                is_unread=True
             ),
             progress_id,
-            f"fetching unreplied emails for campaign '{request.campaign_name}'"
+            f"fetching unread emails for campaign '{request.campaign_name}'"
         )
         
         valid_emails = emails_data.get("items", [])
         
-        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Found {len(valid_emails)} unreplied email(s) to process"
+        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Found {len(valid_emails)} unread email(s) to process"
         progress_store[progress_id]["logs"].append(log_entry)
         
         if not valid_emails:
@@ -652,32 +653,32 @@ async def process_single_campaign_background(request: ProcessCampaignRequest, pr
         progress_store[progress_id]["error"] = str(e)
 
 async def process_all_unread_emails_background(request: ProcessCampaignRequest, progress_id: str):
-    """Process all unreplied emails directly - fastest method (only 1 API call)"""
+    """Process all unread emails directly - fastest method (only 1 API call)"""
     try:
         progress_store[progress_id]["logs"] = []
-        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] Starting email processing for ALL unreplied emails..."
+        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] Starting email processing for ALL unread emails..."
         progress_store[progress_id]["logs"].append(log_entry)
         
-        # Rate limit: Get all unreplied emails directly (ONLY 1 Instantly.ai API call - much faster!)
-        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] Fetching all unreplied emails directly (fastest method)..."
+        # Rate limit: Get all unread emails directly (ONLY 1 Instantly.ai API call - much faster!)
+        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] Fetching all unread emails directly (fastest method)..."
         progress_store[progress_id]["logs"].append(log_entry)
         
         await instantly_rate_limiter.acquire()
-        # Get unreplied emails (method already filters by checking threads for replies)
+        # Get unread emails
         emails_data = await fetch_with_rate_limit_retry(
-            lambda: email_agent.get_all_unreplied_emails(limit=100),
+            lambda: email_agent.get_all_unread_emails(limit=100, include_sent=False),
             progress_id,
-            "fetching unreplied emails"
+            "fetching unread emails"
         )
         valid_emails = emails_data.get("items", [])
-        log_entry = (f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Retrieved {len(valid_emails)} unreplied email(s) "
+        log_entry = (f"[{datetime.now().strftime('%H:%M:%S')}] ✓ Retrieved {len(valid_emails)} unread email(s) "
                      "before duplicate filtering")
         progress_store[progress_id]["logs"].append(log_entry)
         
         if not valid_emails:
             progress_store[progress_id]["status"] = "completed"
             progress_store[progress_id]["total"] = 0
-            log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] No unreplied emails to process"
+            log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] No unread emails to process"
             progress_store[progress_id]["logs"].append(log_entry)
             return
         
@@ -750,9 +751,9 @@ async def process_all_unread_emails_background(request: ProcessCampaignRequest, 
 
 @app.post("/campaign/process-all")
 async def process_all_campaigns_emails(request: ProcessAllCampaignsRequest):
-    """Process and auto-reply to unreplied emails from ALL campaigns. 
+    """Process and auto-reply to unread emails from ALL campaigns. 
     Note: auto_reply defaults to False - set to True to actually send replies.
-    An email is considered 'unreplied' if there's no sent email in the same thread."""
+    Processes emails that are marked as unread in Instantly.ai."""
     # Redirect to main process endpoint
     return await process_campaign_emails(ProcessCampaignRequest(
         campaign_name=None,

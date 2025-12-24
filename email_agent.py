@@ -356,7 +356,8 @@ class EmailAgent:
             )
             items = result.get("items", [])
             if not include_sent:
-                items = [item for item in items if item.get("is_unread")]
+                # Filter to only unread received emails (exclude sent emails)
+                items = [item for item in items if item.get("is_unread") and item.get("ue_type") != 1]
             else:
                 # Separate into unread and sent for callers
                 unread_items = [item for item in items if item.get("is_unread")]
@@ -469,9 +470,11 @@ class EmailAgent:
                 "/api/v2/emails",
                 params=params
             )
-            # Filter emails by campaign_id
+            # Filter emails by campaign_id and exclude sent emails (ue_type == 1)
             items = result.get("items", [])
-            filtered_items = [email for email in items if email.get("campaign_id") == campaign_id]
+            filtered_items = [email for email in items 
+                            if email.get("campaign_id") == campaign_id 
+                            and email.get("ue_type") != 1]
             return {
                 "items": filtered_items,
                 "total": len(filtered_items)

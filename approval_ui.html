@@ -937,11 +937,11 @@
                     
                     if (emails.length === 0) {
                         const message = campaignName ? 
-                            `No unreplied emails found in campaign '${campaignName}'` :
-                            'No unreplied emails found across all campaigns';
+                            `No unread emails found in campaign '${campaignName}'` :
+                            'No unread emails found across all campaigns';
                         emailList.innerHTML = `
                             <div class="empty-state">
-                                <h3>No unreplied emails found</h3>
+                                <h3>No unread emails found</h3>
                                 <p>${message}</p>
                             </div>
                         `;
@@ -1052,7 +1052,7 @@
                             if (emailList) {
                                 emailList.innerHTML = `
                                     <div class="empty-state">
-                                        <h3>No unreplied emails found</h3>
+                                        <h3>No unread emails found</h3>
                                         <p>No emails to process.</p>
                                     </div>
                                 `;
